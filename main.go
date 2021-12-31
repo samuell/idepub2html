@@ -1,8 +1,10 @@
 package main
 
 import (
+	"archive/zip"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -11,46 +13,69 @@ import (
 )
 
 func main() {
-	// Define flags
-	xHtmlFile := flag.String("xhtmlfile", "", "Input file in XML format")
-	cssFile := flag.String("cssfile", "", "Input file in XML format")
+	// Configure and parse flags
+	epubFile := flag.String("epubfile", "", "EPUB file")
 	flag.Parse()
-
-	if *xHtmlFile == "" {
-		fmt.Printf("No input file specified! Use the -h flag to view options\n")
-		os.Exit(1)
-	}
-	if *cssFile == "" {
-		fmt.Printf("No CSS file specified! Use the -h flag to view options\n")
+	if *epubFile == "" {
+		fmt.Printf("No EPUB file specified! Use the -h flag to view options\n")
 		os.Exit(1)
 	}
 
-	// Read CSS File
-	cssByte, err := os.ReadFile(*cssFile)
+	zipRd, err := zip.OpenReader(*epubFile)
 	if err != nil {
 		panic(err)
 	}
-	css := string(cssByte)
-	cssData := parseCSS(css)
+	defer zipRd.Close()
 
-	// Read xHtmlFile
-	doc := etree.NewDocument()
-	err = doc.ReadFromFile(*xHtmlFile)
-	if err != nil {
-		panic(err)
+	// Read CSS Data
+	var cssByte []byte
+	var cssData map[string]map[string]string
+	for _, f := range zipRd.File {
+		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".css") {
+			zippedFile, err := f.Open()
+			if err != nil {
+				panic(err)
+			}
+			cssByte, err = io.ReadAll(zippedFile)
+			if err != nil {
+				panic(err)
+			}
+			css := string(cssByte)
+			cssData = parseCSS(css)
+			defer zippedFile.Close()
+		}
 	}
 
-	// Parse document
-	html := doc.SelectElement("html")
-	if body := html.SelectElement("body"); body != nil {
-		text := elemsToSimpleHTML(body.ChildElements(), cssData)
-		text = cleanUpWhiteSpace(text)
-		text = cleanUpReopeningTags(text)
-		text = cleanUpLineBreakDashes(text)
-		fmt.Println(text)
-	} else {
-		fmt.Println("Body was empty!")
+	// Parse XHTML files
+	for _, f := range zipRd.File {
+		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".xhtml") {
+			doc := etree.NewDocument()
+			xHtmlFile, err := f.Open()
+			if err != nil {
+				panic(err)
+			}
+			xHtmlByte, err := io.ReadAll(xHtmlFile)
+			if err != nil {
+				panic(err)
+			}
+			err = doc.ReadFromBytes(xHtmlByte)
+			if err != nil {
+				panic(err)
+			}
+			// Parse document
+			html := doc.SelectElement("html")
+			if body := html.SelectElement("body"); body != nil {
+				text := elemsToSimpleHTML(body.ChildElements(), cssData)
+				text = cleanUpWhiteSpace(text)
+				text = cleanUpReopeningTags(text)
+				text = cleanUpLineBreakDashes(text)
+				fmt.Println(text)
+			} else {
+				fmt.Println("Body was empty!")
+			}
+		}
 	}
+
 }
 
 // elemsToSimpleHTML returns the consecutive text content of all children,
@@ -63,9 +88,11 @@ func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]str
 		if e.Tag == "img" {
 			imgStr := "<img "
 			for _, a := range e.Attr {
-				imgStr += fmt.Sprintf("%s=\"%s\" ", a.Key, a.Value)
+				if a.Key == "src" {
+					imgStr += fmt.Sprintf("%s=\"%s\" ", a.Key, a.Value)
+				}
 			}
-			imgStr += ">"
+			imgStr += "/>"
 			text += imgStr
 		}
 
