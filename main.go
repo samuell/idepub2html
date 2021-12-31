@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/beevik/etree"
@@ -47,7 +48,7 @@ func elemsToText(elems []*etree.Element) (text string) {
 			text += "</p>"
 		}
 	}
-	text = strings.ReplaceAll(text, "   ", " ")
-	text = strings.ReplaceAll(text, "  ", " ")
+	re := regexp.MustCompile("[ ]+")
+	text = re.ReplaceAllString(text, " ")
 	return text
 }
