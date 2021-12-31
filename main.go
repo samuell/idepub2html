@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -21,10 +22,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Format output directory path
+	outDir := strings.TrimSuffix(*epubFile, ".epub")
+
 	zipRd, err := zip.OpenReader(*epubFile)
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	defer zipRd.Close()
 
 	// Read CSS Data
@@ -33,35 +35,53 @@ func main() {
 	for _, f := range zipRd.File {
 		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".css") {
 			zippedFile, err := f.Open()
-			if err != nil {
-				panic(err)
-			}
+			check(err)
 			cssByte, err = io.ReadAll(zippedFile)
-			if err != nil {
-				panic(err)
-			}
+			check(err)
 			css := string(cssByte)
 			cssData = parseCSS(css)
 			defer zippedFile.Close()
 		}
 	}
 
+	// Unpack images
+	imgRe := regexp.MustCompile(".*\\.(jpg|jpeg|gif|png|bmp|svg)")
+	for _, f := range zipRd.File {
+		if !f.FileInfo().IsDir() && imgRe.MatchString(f.Name) {
+			imgDir := filepath.Join(outDir, "images")
+
+			err := os.MkdirAll(imgDir, os.ModePerm)
+			check(err)
+
+			destPath := filepath.Join(imgDir, filepath.Base(f.Name))
+			destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			check(err)
+			defer destFile.Close()
+
+			imgFile, err := f.Open()
+			check(err)
+
+			_, err = io.Copy(destFile, imgFile)
+			check(err)
+		}
+	}
+
+	outHtmlFile, err := os.Create(filepath.Join(outDir, "index.html"))
+	check(err)
+	defer outHtmlFile.Close()
+
 	// Parse XHTML files
 	for _, f := range zipRd.File {
 		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".xhtml") {
 			doc := etree.NewDocument()
 			xHtmlFile, err := f.Open()
-			if err != nil {
-				panic(err)
-			}
+			check(err)
+
 			xHtmlByte, err := io.ReadAll(xHtmlFile)
-			if err != nil {
-				panic(err)
-			}
+			check(err)
+
 			err = doc.ReadFromBytes(xHtmlByte)
-			if err != nil {
-				panic(err)
-			}
+			check(err)
 			// Parse document
 			html := doc.SelectElement("html")
 			if body := html.SelectElement("body"); body != nil {
@@ -69,13 +89,14 @@ func main() {
 				text = cleanUpWhiteSpace(text)
 				text = cleanUpReopeningTags(text)
 				text = cleanUpLineBreakDashes(text)
-				fmt.Println(text)
+				_, err := outHtmlFile.WriteString(text)
+				check(err)
+				outHtmlFile.Sync()
 			} else {
-				fmt.Println("Body was empty!")
+				fmt.Println("WARNING: Body was empty!")
 			}
 		}
 	}
-
 }
 
 // elemsToSimpleHTML returns the consecutive text content of all children,
@@ -182,4 +203,10 @@ func cleanUpReopeningTags(text string) string {
 		text = strings.ReplaceAll(text, fmt.Sprintf("</%s><%s>", s, s), "")
 	}
 	return text
+}
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
