@@ -44,6 +44,9 @@ func main() {
 	html := doc.SelectElement("html")
 	if body := html.SelectElement("body"); body != nil {
 		text := elemsToSimpleHTML(body.ChildElements(), cssData)
+		text = cleanUpWhiteSpace(text)
+		text = cleanUpReopeningTags(text)
+		text = cleanUpLineBreakDashes(text)
 		fmt.Println(text)
 	} else {
 		fmt.Println("Body was empty!")
@@ -90,9 +93,6 @@ func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]str
 		}
 	}
 
-	// Clean up whitespaces
-	re := regexp.MustCompile("[ ]+")
-	text = re.ReplaceAllString(text, " ")
 	return text
 }
 
@@ -119,4 +119,26 @@ func parseCSS(css string) map[string]map[string]string {
 		cssData[name] = propData
 	}
 	return cssData
+}
+
+func cleanUpWhiteSpace(text string) string {
+	re := regexp.MustCompile("[ ]+")
+	text = re.ReplaceAllString(text, " ")
+	return text
+}
+
+func cleanUpLineBreakDashes(text string) string {
+	re := regexp.MustCompile("([A-Za-zåäöÅÄÖ]{2,})\\- ([A-Za-zåäöÅÄÖ]{2,})")
+	ms := re.FindAllStringSubmatch(text, -1)
+	for _, bits := range ms {
+		text = strings.ReplaceAll(text, bits[0], bits[1]+bits[2])
+	}
+	return text
+}
+
+func cleanUpReopeningTags(text string) string {
+	for _, s := range []string{"i", "b"} {
+		text = strings.ReplaceAll(text, fmt.Sprintf("</%s><%s>", s, s), "")
+	}
+	return text
 }
