@@ -60,6 +60,20 @@ func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]str
 	for _, e := range elems {
 		closingTags := []string{}
 
+		if e.Tag == "img" {
+			imgStr := "<img "
+			for _, a := range e.Attr {
+				imgStr += fmt.Sprintf("%s=\"%s\" ", a.Key, a.Value)
+			}
+			imgStr += ">"
+			text += imgStr
+		}
+
+		if e.Tag == "div" && strings.HasPrefix(e.SelectAttrValue("id", ""), "_idContainer") {
+			text += "<div style=\"border: 4px solid #ccc; margin: 1em; padding: 1em;\">"
+			closingTags = append(closingTags, "</div>\n")
+		}
+
 		// Convert some tags to simple HTML variants
 		if e.Tag == "p" {
 			text += "<p>"
