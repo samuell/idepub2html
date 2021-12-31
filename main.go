@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/beevik/etree"
 )
@@ -22,4 +23,31 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	html := doc.SelectElement("html")
+	if body := html.SelectElement("body"); body != nil {
+		text := elemsToText(body.ChildElements())
+		fmt.Println(text)
+	} else {
+		fmt.Println("Body was empty!")
+	}
+}
+
+func elemsToText(elems []*etree.Element) (text string) {
+	for _, e := range elems {
+		if e.Tag == "p" {
+			text += "<p>"
+		}
+		children := e.ChildElements()
+		if children != nil {
+			text += elemsToText(children)
+		}
+		text += strings.TrimSpace(e.Text()) + " "
+		if e.Tag == "p" {
+			text += "</p>"
+		}
+	}
+	text = strings.ReplaceAll(text, "   ", " ")
+	text = strings.ReplaceAll(text, "  ", " ")
+	return text
 }
