@@ -43,7 +43,7 @@ func main() {
 	// Parse document
 	html := doc.SelectElement("html")
 	if body := html.SelectElement("body"); body != nil {
-		text := elemsToSimpleHTML(body.ChildElements())
+		text := elemsToSimpleHTML(body.ChildElements(), cssData)
 		fmt.Println(text)
 	} else {
 		fmt.Println("Body was empty!")
@@ -53,20 +53,44 @@ func main() {
 // elemsToSimpleHTML returns the consecutive text content of all children,
 // being processed recursively. It preserves only very basic HTML tags such as
 // for paragraphs, italic and bold text etc.
-func elemsToSimpleHTML(elems []*etree.Element) (text string) {
+func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]string) (text string) {
 	for _, e := range elems {
+		closingTags := []string{}
+
+		// Convert some tags to simple HTML variants
 		if e.Tag == "p" {
 			text += "<p>"
+			closingTags = append(closingTags, "</p>")
 		}
+		if e.Tag == "span" {
+			classStr := e.SelectAttr("class").Value
+			classes := strings.Split(classStr, " ")
+			for _, class := range classes {
+				cssInfo := cssData[e.Tag+"."+class]
+				if cssInfo["font-weight"] == "bold" {
+					text += "<b>"
+					closingTags = append(closingTags, "</b>")
+				}
+				if cssInfo["font-style"] == "italic" {
+					text += "<i>"
+					closingTags = append(closingTags, "</i>")
+				}
+			}
+		}
+
 		children := e.ChildElements()
 		if children != nil {
-			text += elemsToSimpleHTML(children)
+			text += elemsToSimpleHTML(children, cssData)
 		}
 		text += strings.TrimSpace(e.Text()) + " "
-		if e.Tag == "p" {
-			text += "</p>"
+
+		// Close any tags from the conversion before
+		for i := len(closingTags) - 1; i >= 0; i-- {
+			text += closingTags[i]
 		}
 	}
+
+	// Clean up whitespaces
 	re := regexp.MustCompile("[ ]+")
 	text = re.ReplaceAllString(text, " ")
 	return text
