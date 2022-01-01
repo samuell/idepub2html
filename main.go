@@ -66,7 +66,8 @@ func main() {
 		}
 	}
 
-	outHtmlFile, err := os.Create(filepath.Join(outDir, "index.html"))
+	outHtmlPath := filepath.Join(outDir, "index.html")
+	outHtmlFile, err := os.Create(outHtmlPath)
 	check(err, "Could not create output HTML file")
 	defer outHtmlFile.Close()
 
@@ -103,6 +104,8 @@ func main() {
 	_, err = outHtmlFile.WriteString(outHtml)
 	check(err, "Could not Write to output HTML file")
 	outHtmlFile.Sync()
+	fmt.Printf("Wrote output HTML to: %s\n", outHtmlPath)
+	fmt.Println("(To view the file, open it in a web browser!)")
 }
 
 // elemsToSimpleHTML returns the consecutive text content of all children,
