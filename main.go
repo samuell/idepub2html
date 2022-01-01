@@ -26,7 +26,7 @@ func main() {
 	outDir := strings.TrimSuffix(*epubFile, ".epub")
 
 	zipRd, err := zip.OpenReader(*epubFile)
-	check(err)
+	check(err, "Could not read ZIP file")
 	defer zipRd.Close()
 
 	// Read CSS Data
@@ -35,9 +35,9 @@ func main() {
 	for _, f := range zipRd.File {
 		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".css") {
 			zippedFile, err := f.Open()
-			check(err)
+			check(err, "Could not open css file")
 			cssByte, err = io.ReadAll(zippedFile)
-			check(err)
+			check(err, "Could not read css file")
 			css := string(cssByte)
 			cssData = parseCSS(css)
 			defer zippedFile.Close()
@@ -48,55 +48,61 @@ func main() {
 	imgRe := regexp.MustCompile(".*\\.(jpg|jpeg|gif|png|bmp|svg)")
 	for _, f := range zipRd.File {
 		if !f.FileInfo().IsDir() && imgRe.MatchString(f.Name) {
-			imgDir := filepath.Join(outDir, "images")
+			imgDir := filepath.Join(outDir, "image")
 
 			err := os.MkdirAll(imgDir, os.ModePerm)
-			check(err)
+			check(err, "Could not create img dir")
 
 			destPath := filepath.Join(imgDir, filepath.Base(f.Name))
 			destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-			check(err)
+			check(err, "Could not create destination image file")
 			defer destFile.Close()
 
 			imgFile, err := f.Open()
-			check(err)
+			check(err, "Could not open input image file")
 
 			_, err = io.Copy(destFile, imgFile)
-			check(err)
+			check(err, "Could not copy image file to destination")
 		}
 	}
 
 	outHtmlFile, err := os.Create(filepath.Join(outDir, "index.html"))
-	check(err)
+	check(err, "Could not create output HTML file")
 	defer outHtmlFile.Close()
 
 	// Parse XHTML files
+	outHtml := ""
 	for _, f := range zipRd.File {
 		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".xhtml") {
 			doc := etree.NewDocument()
 			xHtmlFile, err := f.Open()
-			check(err)
+			check(err, "Could not open input XHTML file")
 
 			xHtmlByte, err := io.ReadAll(xHtmlFile)
-			check(err)
+			check(err, "Could not read input XHTML file")
 
 			err = doc.ReadFromBytes(xHtmlByte)
-			check(err)
+			check(err, "Could not read XHTML file into ElementTree")
 			// Parse document
 			html := doc.SelectElement("html")
 			if body := html.SelectElement("body"); body != nil {
 				text := elemsToSimpleHTML(body.ChildElements(), cssData)
-				text = cleanUpWhiteSpace(text)
+				text = replaceNonStandardChars(text)
 				text = cleanUpReopeningTags(text)
 				text = cleanUpLineBreakDashes(text)
-				_, err := outHtmlFile.WriteString(text)
-				check(err)
-				outHtmlFile.Sync()
+				text = convertSectionHeadings(text)
+				text = cleanUpWhiteSpace(text)
+				text = convertNoteNumbers(text)
+				outHtml += text
+				outHtml += "\n<hr>\n"
 			} else {
 				fmt.Println("WARNING: Body was empty!")
 			}
 		}
 	}
+	_, err = outHtmlFile.WriteString(outHtml)
+	check(err, "Could not Write to output HTML file")
+	outHtmlFile.Sync()
 }
 
 // elemsToSimpleHTML returns the consecutive text content of all children,
@@ -113,12 +119,12 @@ func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]str
 					imgStr += fmt.Sprintf("%s=\"%s\" ", a.Key, a.Value)
 				}
 			}
-			imgStr += "/>"
+			imgStr += `style="max-width: 240px; max-height: 240px;" />`
 			text += imgStr
 		}
 
 		if e.Tag == "div" && strings.HasPrefix(e.SelectAttrValue("id", ""), "_idContainer") {
-			text += "<div style=\"border: 4px solid #ccc; margin: 1em; padding: 1em;\">"
+			text += "<div style=\"border: 1px solid #ccc; margin: 1em; padding: 1em;\">"
 			closingTags = append(closingTags, "</div>\n")
 		}
 
@@ -186,6 +192,7 @@ func parseCSS(css string) map[string]map[string]string {
 func cleanUpWhiteSpace(text string) string {
 	re := regexp.MustCompile("[ ]+")
 	text = re.ReplaceAllString(text, " ")
+	text = strings.ReplaceAll(text, " <", "<")
 	return text
 }
 
@@ -205,8 +212,35 @@ func cleanUpReopeningTags(text string) string {
 	return text
 }
 
-func check(err error) {
+func convertSectionHeadings(text string) string {
+	headingRe := regexp.MustCompile(`<b>(([A-ZÅÄÖ0-9"?\.,\-]{1,} ?)+)</b>`)
+	ms := headingRe.FindAllStringSubmatch(text, -1)
+	for _, m := range ms {
+		title := strings.ToUpper(string(m[1][0])) + strings.ToLower(m[1][1:])
+		text = strings.ReplaceAll(text, m[0], fmt.Sprintf("<h3>%s</h3>", title))
+	}
+
+	return text
+}
+
+func check(err error, msg string) {
 	if err != nil {
+		fmt.Println("ERROR: " + msg)
 		panic(err)
 	}
+}
+
+func convertNoteNumbers(text string) string {
+	re := regexp.MustCompile(`([\.,]"? )(([0-9]{1,2}[-,]?)+)`)
+	ms := re.FindAllStringSubmatch(text, -1)
+	for _, m := range ms {
+		text = strings.ReplaceAll(text, m[0], fmt.Sprintf("%s[%s]", m[1], m[2]))
+	}
+	return text
+}
+
+func replaceNonStandardChars(text string) string {
+	text = strings.ReplaceAll(text, `”`, `"`)
+	text = strings.ReplaceAll(text, `–`, `-`)
+	return text
 }
