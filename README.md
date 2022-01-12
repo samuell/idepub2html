@@ -1,18 +1,8 @@
-# Script to convert EPUB files to HTML
+# Script to convert EPUB files from A*obe InDesign to HTML
 
 ## Usage
 
-- Unpack the epub file with unzip:
+- Execute the following command on the commandline:
   ```
-  unzip -d <outdir> <epubfile.epub>
-  ```
-
-- Move into xhtml folder
-  ```
-  cd <outdir>/OEBPS/
-  ```
-
-- Convert one of the XHTMl files to cleaned up HTML
-  ```
-  epub2html -infile somefile.xhtml > somefile.cleaned.html
+  ai-epub2html -epubfile <adobe-indesign-epub-export>
   ```
