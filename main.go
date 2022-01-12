@@ -127,8 +127,7 @@ func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]str
 		}
 
 		if e.Tag == "div" && strings.HasPrefix(e.SelectAttrValue("id", ""), "_idContainer") {
-			text += "<div style=\"border: 1px solid #ccc; margin: 1em; padding: 1em;\">"
-			closingTags = append(closingTags, "</div>\n")
+			text += "<hr>\n"
 		}
 
 		// Convert some tags to simple HTML variants
