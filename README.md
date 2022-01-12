@@ -1,4 +1,4 @@
-# Script to convert EPUB files from A*obe InDesign to HTML
+# Convert EPUB files from *dobe InDesign to HTML
 
 ## Usage
 
