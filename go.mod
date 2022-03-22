@@ -1,4 +1,4 @@
-module epub2html
+module idepub2html
 
 go 1.18
 
