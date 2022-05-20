@@ -194,7 +194,6 @@ func parseCSS(css string) map[string]map[string]string {
 func cleanUpWhiteSpace(text string) string {
 	re := regexp.MustCompile("[ ]+")
 	text = re.ReplaceAllString(text, " ")
-	text = strings.ReplaceAll(text, " <", "<")
 	return text
 }
 
