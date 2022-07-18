@@ -54,6 +54,9 @@ func main() {
 			check(err, "Could not create img dir")
 
 			destPath := filepath.Join(imgDir, filepath.Base(f.Name))
+			if len(destPath) > 150 {
+				destPath = destPath[0:140] + "." + destPath[len(destPath)-3:]
+			}
 			destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 			check(err, "Could not create destination image file")
 			defer destFile.Close()
