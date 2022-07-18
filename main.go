@@ -69,14 +69,16 @@ func main() {
 		}
 	}
 
-	outHtmlPath := filepath.Join(outDir, "index.html")
-	outHtmlFile, err := os.Create(outHtmlPath)
-	check(err, "Could not create output HTML file")
-	defer outHtmlFile.Close()
-
 	// Parse XHTML files
-	outHtml := ""
-	for _, f := range zipRd.File {
+	xhtmlRe := regexp.MustCompile(".*\\.xhtml")
+	for fid, f := range zipRd.File {
+		if !xhtmlRe.MatchString(f.Name) {
+			continue
+		}
+		outHtmlPath := filepath.Join(outDir, fmt.Sprintf("page_%03d.html", fid))
+		outHtmlFile, err := os.Create(outHtmlPath)
+		check(err, "Could not create output HTML file")
+		outHtml := ""
 		if !f.FileInfo().IsDir() && strings.HasSuffix(f.Name, ".xhtml") {
 			doc := etree.NewDocument()
 			xHtmlFile, err := f.Open()
@@ -103,12 +105,12 @@ func main() {
 				fmt.Println("WARNING: Body was empty!")
 			}
 		}
+		_, err = outHtmlFile.WriteString(outHtml)
+		check(err, "Could not Write to output HTML file")
+		outHtmlFile.Sync()
+		fmt.Printf("Wrote output HTML to: %s\n", outHtmlPath)
+		outHtmlFile.Close()
 	}
-	_, err = outHtmlFile.WriteString(outHtml)
-	check(err, "Could not Write to output HTML file")
-	outHtmlFile.Sync()
-	fmt.Printf("Wrote output HTML to: %s\n", outHtmlPath)
-	fmt.Println("(To view the file, open it in a web browser!)")
 }
 
 // elemsToSimpleHTML returns the consecutive text content of all children,
