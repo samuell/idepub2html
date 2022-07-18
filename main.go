@@ -13,6 +13,10 @@ import (
 	"github.com/beevik/etree"
 )
 
+const (
+	HRTAG = "\n<hr>\n"
+)
+
 func main() {
 	// Configure and parse flags
 	epubFile := flag.String("epubfile", "", "EPUB file")
@@ -100,7 +104,7 @@ func main() {
 				text = cleanUpWhiteSpace(text)
 				text = convertNoteNumbers(text)
 				outHtml += text
-				outHtml += "\n<hr>\n"
+				outHtml += HRTAG
 			} else {
 				fmt.Println("WARNING: Body was empty!")
 			}
@@ -132,7 +136,7 @@ func elemsToSimpleHTML(elems []*etree.Element, cssData map[string]map[string]str
 		}
 
 		if e.Tag == "div" && strings.HasPrefix(e.SelectAttrValue("id", ""), "_idContainer") {
-			text += "<hr>\n"
+			text += HRTAG
 		}
 
 		// Convert some tags to simple HTML variants
